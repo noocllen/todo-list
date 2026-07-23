@@ -1,5 +1,5 @@
 from uuid import uuid4
-from fastapi import FastAPI, status
+from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -28,7 +28,30 @@ class TaskCreate(BaseModel):
     title: str
 
 
+class TaskUpdate(BaseModel):
+    """Pydantic-модель(схема) запроса на редактирование задачи"""
+    title: str | None = None
+    completed: bool | None = None
+
+
 tasks: list[Task] = []
+
+
+class Category(BaseModel):
+    id: str
+    name: str
+
+
+class CategoryCreate(BaseModel):
+    name: str
+
+
+class CategoryUpdate(BaseModel):
+    name: str
+
+
+categories: list[Category] = []
+
 
 
 @app.get("/tasks", response_model=list[Task])
@@ -45,24 +68,53 @@ def create_task(payload: TaskCreate):
     return task
 
 
-
-class Book(BaseModel):
-    name: str
-
-
-book: Book
-
-
-@app.get("/book")
-def get_book():
-    try:
-        return f"Любимая книга {book.name}"
-    except Exception:
-        return "Книги нет"
+@app.patch("/tasks/{task_id}", response_model=Task)
+def update_task(task_id: str, payload: TaskUpdate):
+    """Редактирование задачи"""
+    for task in tasks:
+        if task.id == task_id:
+            if payload.title is not None:
+                task.title = payload.title
+            if payload.completed is not None:
+                task.completed = payload.completed
+            return task
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
 
 
-@app.post("/book", response_model=Book, status_code=status.HTTP_201_CREATED)
-def create_book(payload: Book):
-    global book
-    book = Book(name=payload.name)
-    return book
+@app.delete("/tasks/{task_id}", status_code = status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: str):
+    for task in tasks:
+        if task.id == task_id:
+            tasks.remove(task)
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+
+
+
+@app.get("/categories", response_model=list[Category])
+def get_categories():
+    return categories
+
+
+@app.post("/categories", response_model=Category, status_code=status.HTTP_201_CREATED)
+def create_category(payload: CategoryCreate):
+    category = Category(id=str(uuid4()), name=payload.name)
+    categories.append(category)
+    return category
+
+
+@app.patch("/categories/{category_id}", response_model=Category)
+def update_category(category_id: str, payload: CategoryUpdate):
+    for category in categories:
+        if category.id == category_id:
+            category.name = payload.name
+        return category
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Категория не найдена")
+
+
+@app.delete("/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_category(category_id: str):
+    for category in categories:
+        if category.id == category_id:
+            categories.remove(category)
+            return
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Категория не найдена")
